@@ -8,6 +8,7 @@
 		"lint": "next lint"
 	},
 	"dependencies": {
+		"@ethersproject/providers": "^5.7.2",
 		"@types/node": "18.19.14",
 		"@types/react": "18.2.52",
 		"@types/react-dom": "18.2.18",

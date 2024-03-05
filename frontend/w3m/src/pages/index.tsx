@@ -1,17 +1,77 @@
 import Head from "next/head";
 import Image from "next/image";
 import styles from "@/styles/Home.module.css";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { ethers } from "ethers";
+import { useContractWrite, usePrepareContractWrite, useAccount, useConnect, useNetwork } from 'wagmi';
+import { contractAddress, contractABI } from "../../public/constants.js"; // ABI of contract
+
+
+import { FhenixClient } from "fhenixjs";
+import { EncryptionTypes } from "fhenixjs";
+const provider = new ethers.JsonRpcProvider("https://api.testnet.fhenix.zone:7747/");
+const fheClient = new FhenixClient({ provider });
+
 
 export default function Home() {
-    const [isNetworkSwitchHighlighted, setIsNetworkSwitchHighlighted] =
-        useState(false);
+    const [isNetworkSwitchHighlighted, setIsNetworkSwitchHighlighted] = useState(false);
     const [isConnectHighlighted, setIsConnectHighlighted] = useState(false);
+    const [date, setDate] = useState(''); // State to store the input date
+
+    // Splitting the date and converting to integers
+    const [year, month, day] = date ? date.split('-').map(part => parseInt(part, 10)) : [null, null, null];
+
+    type EncryptedNumber = { data: Uint8Array }; // change if needed
+    type EncryptedData = { data: EncryptedNumber };
+
+    const [encryptedArgs, setEncryptedArgs] = useState<EncryptedData[]>([]);
+
+    const { connect, connectors } = useConnect();
+    const { address } = useAccount();
+    const { chain } = useNetwork();
+
+    useEffect(() => {
+        const encryptAndSet = async () => {
+            if (day && month && year) { // Ensure these are not null or undefined
+                const encryptedDay = await fheClient.encrypt(day, EncryptionTypes.uint8);
+                const encryptedMonth = await fheClient.encrypt(month, EncryptionTypes.uint8);
+                const encryptedYear = await fheClient.encrypt(year, EncryptionTypes.uint16);
+                setEncryptedArgs([
+                    { data: encryptedDay },
+                    { data: encryptedMonth },
+                    { data: encryptedYear }
+                ]);
+            }
+        };
+
+        encryptAndSet();
+    }, [day, month, year]); // Rerun when date changes
+
+    const { config } = usePrepareContractWrite({
+        address: contractAddress,
+        abi: contractABI,
+        functionName: 'set_bday',
+        args: encryptedArgs.length > 0 ? encryptedArgs : undefined,
+    });
+
+    const { write } = useContractWrite(config);
 
     const closeAll = () => {
         setIsNetworkSwitchHighlighted(false);
         setIsConnectHighlighted(false);
     };
+
+    const handleTransact = () => {
+        // You can add any pre-transaction logic here
+        if (write) {
+            write();
+        }
+    };
+
+    const handleDateChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setDate(event.target.value);
+    };
+    
 
     return (
         <>
@@ -68,8 +128,8 @@ export default function Home() {
                             <h2>Birthday Token</h2>
 								<div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
 									<span>Set Birthday</span>
-									<input type="date" className={styles.inputField} />
-									<button className={styles.transactButton}>Transact</button>
+									<input type="date" className={styles.inputField} onChange={handleDateChange} value={date} />
+                                    <button className={styles.transactButton} onClick={handleTransact}>Transact</button>
 								</div>
 								<div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
 									<span>Mint tokens if today is your birthday</span>
